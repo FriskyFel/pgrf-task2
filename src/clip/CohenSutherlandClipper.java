@@ -1,6 +1,7 @@
 package clip;
 
 import model.Line;
+import model.Point2D;
 
 public class CohenSutherlandClipper {
 
@@ -31,8 +32,8 @@ public class CohenSutherlandClipper {
         while (true) {
             if ((code1 | code2) == INSIDE) {
                 return new Line(
-                        (int) Math.round(x1), (int) Math.round(y1),
-                        (int) Math.round(x2), (int) Math.round(y2));
+                        new Point2D((int) Math.round(x1), (int) Math.round(y1)),
+                        new Point2D((int) Math.round(x2), (int) Math.round(y2)));
             }
 
             if ((code1 & code2) != INSIDE) {

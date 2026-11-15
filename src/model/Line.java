@@ -3,7 +3,7 @@ package model;
 public class Line {
     private final Point2D p1, p2;
 
-    public Line(int x1, int y1, int x2, int y2) {
+    Line(int x1, int y1, int x2, int y2) {
         p1 = new Point2D(x1, y1);
         p2 = new Point2D(x2, y2);
     }

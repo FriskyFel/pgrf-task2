@@ -8,7 +8,7 @@ public class Window extends JFrame {
 
     public Window(int width, int height) {
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setTitle("PGRF1 2024/2025  |  left mouse = polygon  |  right mouse = line  |  C = clear");
+        setTitle("PGRF1 2025/2026  |  Uloha 2");
         setVisible(true);
 
         panel = new Panel(width, height);

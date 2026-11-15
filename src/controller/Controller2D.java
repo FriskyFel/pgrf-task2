@@ -1,6 +1,9 @@
 package controller;
 
+import clip.CohenSutherlandClipper;
+import clip.SutherlandHodgmanClipper;
 import fill.PatternFill;
+import fill.ScanLineFiller;
 import fill.SeedFiller;
 import fill.SolidFill;
 import model.Line;
@@ -21,14 +24,18 @@ import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 
-
 public class Controller2D {
     private static final int LINE_COLOR = 0xFFFFFF;
     private static final int POLYGON_COLOR = 0xFFFF00;
     private static final int RUBBER_COLOR = 0xFF0000;
     private static final int BACKGROUND_COLOR = 0x000000;
     private static final int BORDER_COLOR = 0x00FFFF;
-    private static final int FILL_COLOR = 0x00AA44;
+    private static final int FILL_COLOR = 0x2060DD;
+    private static final int SCANLINE_COLOR = 0xFF8800;
+    private static final int CLIP_WINDOW_COLOR = 0xFF4444;
+    private static final int CLIP_POLYGON_COLOR = 0xFF44FF;
+    private static final int CLIPPED_COLOR = 0x44FF44;
+    private static final int GHOST_COLOR = 0x303030;
 
     private enum Drag {NONE, LINE, POLYGON, FREEHAND}
 
@@ -39,6 +46,9 @@ public class Controller2D {
     private final LineRasterizer lineRasterizer;
     private final PolygonRasterizer polygonRasterizer;
     private final SeedFiller seedFiller;
+    private final ScanLineFiller scanLineFiller;
+    private final CohenSutherlandClipper lineClipper;
+    private final SutherlandHodgmanClipper polygonClipper;
 
     private final List<Line> lines = new ArrayList<>();
     private final Polygon polygon = new Polygon();
@@ -51,6 +61,8 @@ public class Controller2D {
 
     private Mode mode = Mode.DRAW;
     private SeedFiller.Boundary boundary = SeedFiller.Boundary.BORDER;
+    private boolean scanLineEnabled = false;
+    private boolean clippingEnabled = false;
 
     public Controller2D(Panel panel) {
         this.panel = panel;
@@ -61,12 +73,25 @@ public class Controller2D {
 
         PatternFill fill = new SolidFill(FILL_COLOR);
         seedFiller = new SeedFiller(raster, fill, BORDER_COLOR, BACKGROUND_COLOR);
+        scanLineFiller = new ScanLineFiller(raster, new SolidFill(SCANLINE_COLOR));
+
+        lineClipper = new CohenSutherlandClipper(150, 100, 650, 500);
+        polygonClipper = new SutherlandHodgmanClipper(createClipPolygon());
 
         initlizeEventListeners();
         updateTitle();
         redraw();
     }
 
+    private Polygon createClipPolygon() {
+        Polygon clip = new Polygon();
+        clip.addPoint(new Point2D(400, 60));
+        clip.addPoint(new Point2D(700, 260));
+        clip.addPoint(new Point2D(585, 540));
+        clip.addPoint(new Point2D(215, 540));
+        clip.addPoint(new Point2D(100, 260));
+        return clip;
+    }
 
     private void initlizeEventListeners() {
         panel.addMouseListener(new MouseAdapter() {
@@ -157,6 +182,12 @@ public class Controller2D {
                     case KeyEvent.VK_S:
                         mode = Mode.SEED;
                         break;
+                    case KeyEvent.VK_F:
+                        scanLineEnabled = !scanLineEnabled;
+                        break;
+                    case KeyEvent.VK_O:
+                        clippingEnabled = !clippingEnabled;
+                        break;
                     case KeyEvent.VK_B:
                         boundary = boundary == SeedFiller.Boundary.BORDER
                                 ? SeedFiller.Boundary.BACKGROUND
@@ -175,7 +206,6 @@ public class Controller2D {
         return e.isShiftDown() ? LineSnapper.snap(lineStart, point) : point;
     }
 
-
     private void clearAll() {
         lines.clear();
         polygon.clear();
@@ -183,6 +213,8 @@ public class Controller2D {
         seeds.clear();
         mode = Mode.DRAW;
         boundary = SeedFiller.Boundary.BORDER;
+        scanLineEnabled = false;
+        clippingEnabled = false;
         stopDrag();
         updateTitle();
         redraw();
@@ -197,6 +229,7 @@ public class Controller2D {
     private void redraw() {
         raster.clear();
 
+        drawPolygonFill();
         drawOutlines();
 
         seedFiller.setBoundary(boundary);
@@ -204,14 +237,13 @@ public class Controller2D {
             seedFiller.fill(seed);
         }
 
+        drawPolygonFill();
         drawOutlines();
+        drawClipRegions();
 
         drawRubberBand();
         panel.repaint();
     }
-
-
-
 
     private void drawRubberBand() {
         if (drag == Drag.LINE) {
@@ -226,10 +258,22 @@ public class Controller2D {
         }
     }
 
+    private void drawLine(Line line) {
+        if (!clippingEnabled) {
+            lineRasterizer.rasterize(line, LINE_COLOR);
+            return;
+        }
+
+        lineRasterizer.rasterize(line, GHOST_COLOR);
+        Line clipped = lineClipper.clip(line);
+        if (clipped != null) {
+            lineRasterizer.rasterize(clipped, CLIPPED_COLOR);
+        }
+    }
 
     private void drawOutlines() {
         for (Line line : lines) {
-            lineRasterizer.rasterize(line, LINE_COLOR);
+            drawLine(line);
         }
 
         drawPolygonOutline();
@@ -239,11 +283,42 @@ public class Controller2D {
         }
     }
 
-
-    private void drawPolygonOutline() {
-        polygonRasterizer.rasterize(polygon, POLYGON_COLOR, drag != Drag.POLYGON);
+    private void drawPolygonFill() {
+        if (!scanLineEnabled || drag == Drag.POLYGON) {
+            return;
+        }
+        scanLineFiller.fill(clippingEnabled ? polygonClipper.clip(polygon) : polygon);
     }
 
+    private void drawPolygonOutline() {
+        boolean closed = drag != Drag.POLYGON;
+
+        if (!clippingEnabled) {
+            polygonRasterizer.rasterize(polygon, POLYGON_COLOR, closed);
+            return;
+        }
+
+        polygonRasterizer.rasterize(polygon, GHOST_COLOR, closed);
+        polygonRasterizer.rasterize(polygonClipper.clip(polygon), CLIPPED_COLOR);
+    }
+
+    private void drawClipRegions() {
+        if (!clippingEnabled) {
+            return;
+        }
+
+        int x1 = lineClipper.getXMin();
+        int y1 = lineClipper.getYMin();
+        int x2 = lineClipper.getXMax();
+        int y2 = lineClipper.getYMax();
+
+        lineRasterizer.rasterize(x1, y1, x2, y1, CLIP_WINDOW_COLOR);
+        lineRasterizer.rasterize(x2, y1, x2, y2, CLIP_WINDOW_COLOR);
+        lineRasterizer.rasterize(x2, y2, x1, y2, CLIP_WINDOW_COLOR);
+        lineRasterizer.rasterize(x1, y2, x1, y1, CLIP_WINDOW_COLOR);
+
+        polygonRasterizer.rasterize(polygonClipper.getClipPolygon(), CLIP_POLYGON_COLOR);
+    }
 
     private void updateTitle() {
         JFrame frame = (JFrame) SwingUtilities.getWindowAncestor(panel);
@@ -251,9 +326,12 @@ public class Controller2D {
             return;
         }
         frame.setTitle(String.format(
-                "PGRF1 | mode %s | seed %s"
-                        + " | D draw, H freehand, S seed, B, C",
-                mode, boundary));
+                "PGRF1 | mode %s | seed %s | scanline %s | clip %s"
+                        + " | D draw, H freehand, S seed, F, O, B, C",
+                mode, boundary, onOff(scanLineEnabled), onOff(clippingEnabled)));
     }
 
+    private static String onOff(boolean value) {
+        return value ? "on" : "off";
+    }
 }

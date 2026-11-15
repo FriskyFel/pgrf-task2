@@ -29,8 +29,8 @@ public class ScanLineFiller extends Filler {
             return y >= yMin && y <= yMax;
         }
 
-        double intersection(int y) {
-            return k * y + q;
+        int intersection(int y) {
+            return (int) Math.round(k * y + q);
         }
     }
 
@@ -65,7 +65,7 @@ public class ScanLineFiller extends Filler {
         yMin = Math.max(yMin, 0);
         yMax = Math.min(yMax, raster.getHeight() - 1);
 
-        List<Double> intersections = new ArrayList<>();
+        List<Integer> intersections = new ArrayList<>();
 
         for (int y = yMin; y <= yMax; y++) {
             intersections.clear();
@@ -79,8 +79,8 @@ public class ScanLineFiller extends Filler {
             Collections.sort(intersections);
 
             for (int i = 1; i < intersections.size(); i += 2) {
-                int from = Math.max((int) Math.ceil(intersections.get(i - 1)), 0);
-                int to = Math.min((int) Math.floor(intersections.get(i)), raster.getWidth() - 1);
+                int from = Math.max(intersections.get(i - 1), 0);
+                int to = Math.min(intersections.get(i), raster.getWidth() - 1);
                 for (int x = from; x <= to; x++) {
                     raster.setPixel(x, y, pattern.getColor(x, y));
                 }

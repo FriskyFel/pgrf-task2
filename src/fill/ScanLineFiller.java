@@ -5,7 +5,7 @@ import model.Polygon;
 import raster.Raster;
 
 import java.util.ArrayList;
-import java.util.Collections;
+
 import java.util.List;
 
 public class ScanLineFiller extends Filler {
@@ -76,7 +76,7 @@ public class ScanLineFiller extends Filler {
                 }
             }
 
-            Collections.sort(intersections);
+            sort(intersections);
 
             for (int i = 1; i < intersections.size(); i += 2) {
                 int from = Math.max((int) Math.ceil(intersections.get(i - 1)), 0);
@@ -85,6 +85,18 @@ public class ScanLineFiller extends Filler {
                     raster.setPixel(x, y, pattern.getColor(x, y));
                 }
             }
+        }
+    }
+
+    private void sort(List<Double> values) {
+        for (int i = 1; i < values.size(); i++) {
+            double current = values.get(i);
+            int j = i - 1;
+            while (j >= 0 && values.get(j) > current) {
+                values.set(j + 1, values.get(j));
+                j--;
+            }
+            values.set(j + 1, current);
         }
     }
 }

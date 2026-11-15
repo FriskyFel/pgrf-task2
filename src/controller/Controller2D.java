@@ -50,7 +50,7 @@ public class Controller2D {
     private final SeedFiller seedFiller;
     private final ScanLineFiller scanLineFiller;
     private final CohenSutherlandClipper lineClipper;
-    private final SutherlandHodgmanClipper polygonClipper;
+    private SutherlandHodgmanClipper polygonClipper;
 
     private final List<Line> lines = new ArrayList<>();
     private final Polygon polygon = new Polygon();
@@ -66,6 +66,7 @@ public class Controller2D {
     private boolean scanLineEnabled = false;
     private boolean clippingEnabled = false;
     private boolean patternEnabled = false;
+    private boolean clipReversed = false;
 
     private int[] scene;
 
@@ -95,7 +96,16 @@ public class Controller2D {
         clip.addPoint(new Point2D(585, 540));
         clip.addPoint(new Point2D(215, 540));
         clip.addPoint(new Point2D(100, 260));
-        return clip;
+
+        if (!clipReversed) {
+            return clip;
+        }
+
+        Polygon reversed = new Polygon();
+        for (int i = clip.size() - 1; i >= 0; i--) {
+            reversed.addPoint(clip.getPoint(i));
+        }
+        return reversed;
     }
 
     private void initlizeEventListeners() {
@@ -197,6 +207,10 @@ public class Controller2D {
                     case KeyEvent.VK_O:
                         clippingEnabled = !clippingEnabled;
                         break;
+                    case KeyEvent.VK_R:
+                        clipReversed = !clipReversed;
+                        polygonClipper = new SutherlandHodgmanClipper(createClipPolygon());
+                        break;
                     case KeyEvent.VK_P:
                         patternEnabled = !patternEnabled;
                         applyPattern();
@@ -236,6 +250,8 @@ public class Controller2D {
         boundary = SeedFiller.Boundary.BORDER;
         scanLineEnabled = false;
         clippingEnabled = false;
+        clipReversed = false;
+        polygonClipper = new SutherlandHodgmanClipper(createClipPolygon());
         patternEnabled = false;
         applyPattern();
         stopDrag();
@@ -377,9 +393,10 @@ public class Controller2D {
             return;
         }
         frame.setTitle(String.format(
-                "PGRF1 | mode %s | seed %s | scanline %s | clip %s | pattern %s"
-                        + " | D draw, H freehand, S seed, F, O, B, P, C",
-                mode, boundary, onOff(scanLineEnabled), onOff(clippingEnabled), onOff(patternEnabled)));
+                "PGRF1 | mode %s | seed %s | scanline %s | clip %s %s | pattern %s"
+                        + " | D draw, H freehand, S seed, F, O, R, B, P, C",
+                mode, boundary, onOff(scanLineEnabled), onOff(clippingEnabled),
+                clipReversed ? "CCW" : "CW", onOff(patternEnabled)));
     }
 
     private static String onOff(boolean value) {
